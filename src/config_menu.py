@@ -4,6 +4,8 @@ Interactive menu-based configuration tool for encrypted .env files
 import os
 import sys
 import time
+import re
+import datetime
 from env_crypto import EnvCrypto
 
 class ConfigMenu:
@@ -137,6 +139,100 @@ class ConfigMenu:
         
         input("\nPress Enter to continue...")
     
+    def is_boolean_key(self, key):
+        """Check if a key is likely to be a boolean value"""
+        # Special case for SPECIFIC_DATE
+        if key.upper() == 'SPECIFIC_DATE':
+            return True
+            
+        bool_indicators = ['is_', 'has_', 'enable', 'enabled', 'disable', 'disabled', 'allow', 'allowed', 
+                          'flag', 'active', 'activated', 'use_', 'show_', 'hide_', 'debug', 'verbose']
+        return any(indicator in key.lower() for indicator in bool_indicators)
+    
+    def is_date_key(self, key):
+        """Check if a key is likely to be a date value"""
+        # More specific matching to avoid false positives
+        date_indicators = [
+            '_date', 'date_', 'datetime', '_time', 'time_',
+            'start_date', 'end_date', 'deadline', 'expiry_date', 
+            'expiration_date', 'scheduled_date', 'timestamp'
+        ]
+        
+        # First check if it's a boolean - boolean detection takes precedence
+        if self.is_boolean_key(key):
+            return False
+            
+        # Then check for date indicators with more precise matching
+        key_lower = key.lower()
+        return any(indicator in key_lower for indicator in date_indicators)
+        
+    def is_start_end_key(self, key):
+        """Check if a key is specifically START or END related"""
+        key_upper = key.upper()
+        return 'START' in key_upper or 'END' in key_upper
+    
+    def format_date_input(self, value):
+        """Format date input to standard ISO format"""
+        # Try to parse common date formats
+        formats = [
+            '%Y-%m-%d',           # 2023-01-31
+            '%d/%m/%Y',           # 31/01/2023
+            '%m/%d/%Y',           # 01/31/2023
+            '%d-%m-%Y',           # 31-01-2023
+            '%m-%d-%Y',           # 01-31-2023
+            '%d.%m.%Y',           # 31.01.2023
+            '%Y/%m/%d',           # 2023/01/31
+            '%Y%m%d',             # 20230131
+            '%d %b %Y',           # 31 Jan 2023
+            '%d %B %Y',           # 31 January 2023
+            '%b %d, %Y',          # Jan 31, 2023
+            '%B %d, %Y',          # January 31, 2023
+            '%Y-%m-%d %H:%M:%S',  # 2023-01-31 14:30:00
+            '%Y-%m-%dT%H:%M:%S',  # 2023-01-31T14:30:00
+        ]
+        
+        for fmt in formats:
+            try:
+                date_obj = datetime.datetime.strptime(value, fmt)
+                return date_obj.strftime('%Y-%m-%d')  # Return in ISO format
+            except ValueError:
+                continue
+        
+        # If no format matches, return the original value
+        return value
+        
+    def get_date_step_by_step(self):
+        """Get date input by asking for day, month, and year separately"""
+        while True:
+            try:
+                day = int(input("Enter day number (1-31): "))
+                if not 1 <= day <= 31:
+                    print("Day must be between 1 and 31")
+                    continue
+                    
+                month = int(input("Enter month number (1-12): "))
+                if not 1 <= month <= 12:
+                    print("Month must be between 1 and 12")
+                    continue
+                    
+                year = int(input("Enter year (e.g., 2025): "))
+                if not 1900 <= year <= 2100:
+                    print("Year must be between 1900 and 2100")
+                    continue
+                    
+                # Validate the date
+                try:
+                    date_obj = datetime.date(year, month, day)
+                    # Format as DD/MMYYYY
+                    return f"{day:02d}/{month:02d}{year}"  # Return in DD/MMYYYY format
+                except ValueError:
+                    print("Invalid date. Please try again.")
+                    continue
+                    
+            except ValueError:
+                print("Please enter valid numbers")
+                continue
+    
     def edit_value(self):
         """Edit a configuration value"""
         if not self.load_config():
@@ -176,7 +272,31 @@ class ConfigMenu:
                 if input("Show actual value? (y/n): ").lower() == 'y':
                     print(f"Actual value: {current_value}")
             
-            new_value = input("\nEnter new value (leave empty to cancel): ")
+            # Handle boolean values
+            if self.is_boolean_key(key):
+                print("\nThis appears to be a boolean value.")
+                if current_value.lower() in ['true', 'yes', '1', 'on', 'enabled']:
+                    print("Current value is TRUE")
+                    new_value = input("Set to FALSE? (y/n): ").lower()
+                    new_value = 'False' if new_value == 'y' else 'True'
+                else:
+                    print("Current value is FALSE")
+                    new_value = input("Set to TRUE? (y/n): ").lower()
+                    new_value = 'True' if new_value == 'y' else 'False'
+            # Handle START/END date values with step-by-step input
+            elif self.is_start_end_key(key):
+                print("\nThis appears to be a START/END date value.")
+                print("Let's enter the date step by step.")
+                new_value = self.get_date_step_by_step()
+            # Handle other date values
+            elif self.is_date_key(key):
+                print("\nThis appears to be a date value.")
+                print("Enter date in any common format (YYYY-MM-DD, DD/MM/YYYY, etc.)")
+                new_value = input("Enter new date (leave empty to cancel): ")
+                if new_value:
+                    new_value = self.format_date_input(new_value)
+            else:
+                new_value = input("\nEnter new value (leave empty to cancel): ")
             
             if new_value and new_value != current_value:
                 confirm = input(f"Confirm change {key} from '{display_value}' to '{new_value}'? (y/n): ")
@@ -217,8 +337,25 @@ class ConfigMenu:
             print(f"Key '{key}' already exists. Use Edit option to change its value.")
             input("\nPress Enter to continue...")
             return
-            
-        value = input(f"Enter value for {key}: ")
+        
+        # Handle boolean values
+        if self.is_boolean_key(key):
+            print("\nThis appears to be a boolean value.")
+            value = input("Set to TRUE? (y/n): ").lower()
+            value = 'True' if value == 'y' else 'False'
+        # Handle START/END date values with step-by-step input
+        elif self.is_start_end_key(key):
+            print("\nThis appears to be a START/END date value.")
+            print("Let's enter the date step by step.")
+            value = self.get_date_step_by_step()
+        # Handle other date values
+        elif self.is_date_key(key):
+            print("\nThis appears to be a date value.")
+            print("Enter date in any common format (YYYY-MM-DD, DD/MM/YYYY, etc.)")
+            value = input("Enter date: ")
+            value = self.format_date_input(value)
+        else:
+            value = input(f"Enter value for {key}: ")
         
         confirm = input(f"Confirm adding {key}={value}? (y/n): ")
         
