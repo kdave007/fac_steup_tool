@@ -5,7 +5,7 @@ from env_crypto import EnvCrypto
 
 def main():
     # Create an instance of EnvCrypto with a password
-    password = "test-pass"  # You should change this
+    password = "test"  # You should change this
     crypto = EnvCrypto(password)
     
     print("Encrypting .env file...")

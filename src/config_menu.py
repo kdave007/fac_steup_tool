@@ -85,34 +85,34 @@ class ConfigMenu:
             
             print("1. View All Configuration Values")
             print("2. Edit Configuration Value")
-            print("3. Add New Configuration Value")
-            print("4. Delete Configuration Value")
-            print("5. Initialize/Reset Configuration")
-            print("6. Export Configuration")
+            # print("3. Add New Configuration Value")
+            # print("4. Delete Configuration Value")
+            # print("5. Initialize/Reset Configuration")
+            # print("6. Export Configuration")
             print("7. Import Configuration")
-            print("8. Change Encryption Password")
-            print("9. Exit")
+            print("3. Change Encryption Password")
+            print("0. Exit")
             
             self.print_footer()
-            choice = input("\nEnter your choice (1-9): ")
+            choice = input("\nEnter your choice (0-3): ")
             
             if choice == '1':
                 self.view_all_values()
             elif choice == '2':
                 self.edit_value()
+            # elif choice == '3':
+            #     self.add_value()
+            # elif choice == '4':
+            #     self.delete_value()
+            # elif choice == '5':
+            #     self.initialize_config()
+            # elif choice == '6':
+            #     self.export_config()
+            # elif choice == '7':
+            #     self.import_config()
             elif choice == '3':
-                self.add_value()
-            elif choice == '4':
-                self.delete_value()
-            elif choice == '5':
-                self.initialize_config()
-            elif choice == '6':
-                self.export_config()
-            elif choice == '7':
-                self.import_config()
-            elif choice == '8':
                 self.change_password()
-            elif choice == '9':
+            elif choice == '0':
                 self.print_header("Exiting Configuration Manager")
                 print("Thank you for using the Configuration Manager!")
                 time.sleep(1)
