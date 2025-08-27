@@ -48,9 +48,17 @@ class ConfigMenu:
             
         self.crypto = EnvCrypto(self.password)
         
-        # If key file exists, try to load it
-        if os.path.exists(self.key_file):
-            self.crypto.load_key_from_file(self.key_file)
+        # If key file exists, we need to validate the password
+        # by attempting to decrypt the file before loading the key
+        if os.path.exists(self.env_file) and os.path.exists(self.key_file):
+            # First try with password-derived key
+            test_content = self.crypto.decrypt_env_file(self.env_file)
+            
+            # If decryption succeeded, the password is correct
+            if test_content and self.crypto.password_valid:
+                # Now we can safely load the key file
+                self.crypto.load_key_from_file(self.key_file)
+            # Otherwise, don't load the key file - the password is wrong
             
     def load_config(self):
         """Load the configuration values"""
@@ -59,6 +67,14 @@ class ConfigMenu:
             
         if os.path.exists(self.env_file):
             self.env_values, self.key_order = self.crypto.get_env_values(self.env_file)
+            
+            # Check if password is valid
+            if not self.crypto.password_valid:
+                print("Invalid password. Please try again.")
+                self.password = None  # Reset password so it will be asked again
+                self.crypto = None    # Reset crypto object
+                return False
+                
             return len(self.env_values) > 0
         return False
     
@@ -543,8 +559,10 @@ class ConfigMenu:
         
         # Try to decrypt the file to verify the password
         content = self.crypto.decrypt_env_file(self.env_file)
-        if not content:
+        if not content or not self.crypto.password_valid:
             print("Error: Failed to decrypt with current password.")
+            self.password = None  # Reset password
+            self.crypto = None    # Reset crypto object
             input("\nPress Enter to continue...")
             return
         

@@ -20,6 +20,7 @@ class EnvCrypto:
         """
         self.key = None
         self.password = password
+        self.password_valid = False
         
         if password:
             # Derive a key from the password
@@ -123,7 +124,13 @@ class EnvCrypto:
                 encrypted_data = f.read()
             
             # Decrypt the data
-            decrypted_data = self.cipher.decrypt(encrypted_data)
+            try:
+                decrypted_data = self.cipher.decrypt(encrypted_data)
+                self.password_valid = True  # Password is valid if decryption succeeds
+            except Exception as e:
+                print(f"Password validation failed: {e}")
+                self.password_valid = False
+                return None
             
             if output_file:
                 # Write the decrypted data to the output file
@@ -135,6 +142,7 @@ class EnvCrypto:
                 return decrypted_data.decode('utf-8')
         except Exception as e:
             print(f"Error decrypting file: {e}")
+            self.password_valid = False
             return None
     
     def load_key_from_file(self, key_file='.env.key'):
@@ -168,7 +176,9 @@ class EnvCrypto:
         """
         # Decrypt the file
         content = self.decrypt_env_file(input_file)
-        if not content:
+        
+        # If decryption failed or password is invalid, return empty results
+        if not content or not self.password_valid:
             return {}, []
         
         # Parse the content into a dictionary
